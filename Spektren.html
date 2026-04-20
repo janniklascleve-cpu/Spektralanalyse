@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroSpec Ultimate - Extern</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #050608;
+            color: #f1f5f9;
+        }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .spectrum-container {
+            position: relative;
+            width: 100%;
+            height: 112px;
+            border-radius: 0.75rem;
+            border: 1px solid #334155;
+            background-color: black;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .cursor-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background-color: rgba(255, 255, 255, 0.6);
+            z-index: 50;
+            pointer-events: none;
+            box-shadow: 0 0 8px white;
+        }
+
+        .wavelength-badge {
+            position: absolute;
+            top: 1rem;
+            z-index: 100;
+            transform: translateX(-50%);
+            pointer-events: none;
+            display: none;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-8">
+            <div class="flex items-center gap-4">
+                <div class="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-900/20">
+                    <i data-lucide="radio" class="w-8 h-8 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-black tracking-tight uppercase italic">Spectra<span class="text-blue-500 not-italic">Lab</span></h1>
+                    <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Interaktive Lernumgebung v4.6 (Standalone)</p>
+                </div>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Sidebar -->
+            <div class="lg:col-span-3 space-y-6">
+                <section class="bg-slate-900/40 p-6 rounded-[2rem] border border-white/5 shadow-xl">
+                    <h2 class="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-6 flex items-center gap-2">
+                        <i data-lucide="beaker" class="w-4 h-4"></i> Referenzgase
+                    </h2>
+                    <div id="element-list" class="grid grid-cols-1 gap-2">
+                        <!-- Buttons werden per JS eingefügt -->
+                    </div>
+                    <button onclick="resetElements()" class="w-full mt-4 text-[9px] font-black text-slate-600 hover:text-white uppercase transition-colors">
+                        Auswahl aufheben
+                    </button>
+                </section>
+
+                <section class="bg-slate-900/40 p-6 rounded-[2rem] border border-white/5 shadow-xl">
+                    <h2 class="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-6 flex items-center gap-2">
+                        <i data-lucide="star" class="w-4 h-4"></i> Beobachtungsobjekt
+                    </h2>
+                    <div id="object-list" class="space-y-2">
+                        <!-- Buttons werden per JS eingefügt -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Monitor Area -->
+            <div class="lg:col-span-9 space-y-8">
+                <div id="monitor" class="bg-slate-900/30 p-8 md:p-12 rounded-[3.5rem] border border-white/5 shadow-2xl relative overflow-visible">
+                    
+                    <div id="wl-badge" class="wavelength-badge">
+                        <div class="bg-blue-600 px-4 py-2 rounded-xl border border-blue-400 shadow-2xl flex flex-col items-center">
+                           <span class="text-[9px] text-blue-100 font-black uppercase tracking-tighter">Wellenlänge</span>
+                           <span id="wl-text" class="text-xl font-mono font-black text-white">---.-<span class="text-xs ml-0.5 opacity-70">nm</span></span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-12 relative z-10">
+                        <!-- Reference Spectrum -->
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center px-1">
+                                <span class="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] flex items-center gap-2">
+                                    <i data-lucide="beaker" class="w-3 h-3 text-blue-500"></i> Emissions-Spektrum (Referenz)
+                                </span>
+                                <div id="active-gases-count" class="text-[9px] font-mono text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded hidden">
+                                    0 Gase aktiv
+                                </div>
+                            </div>
+                            <div id="reference-spectrum" class="spectrum-container"></div>
+                        </div>
+
+                        <!-- Observation Spectrum -->
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center px-1">
+                                <span class="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] flex items-center gap-2">
+                                    <i data-lucide="star" class="w-3 h-3 text-emerald-500"></i> Beobachtung: <span id="current-obj-name">---</span>
+                                </span>
+                                <span id="success-label" class="text-[10px] text-green-500 font-black flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/30 hidden">
+                                    <i data-lucide="target" class="w-3 h-3"></i> Signatur vollständig identifiziert
+                                </span>
+                            </div>
+                            <div id="observation-spectrum" class="spectrum-container"></div>
+                        </div>
+
+                        <!-- Scale -->
+                        <div id="scale" class="relative h-12 border-t border-slate-800 mt-6 pt-2"></div>
+                    </div>
+                </div>
+
+                <!-- Info Blocks -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="bg-indigo-600/5 p-8 rounded-[2.5rem] border border-indigo-500/20 flex gap-6">
+                        <i data-lucide="lightbulb" class="w-10 h-10 text-indigo-500 shrink-0"></i>
+                        <div class="space-y-3">
+                            <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest">Analyse-Leitfaden</h3>
+                            <p class="text-[11px] text-slate-400 leading-relaxed italic">
+                                Nutze den Cursor für präzise Messungen. Vergleiche die Position der hellen Referenzlinien mit den Lücken (Absorption) oder Spitzen (Emission) im Beobachtungsobjekt.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div id="status-card" class="p-8 rounded-[2.5rem] border flex items-center gap-6 transition-all duration-700 bg-slate-900/40 border-white/5 opacity-50">
+                        <div id="status-icon-bg" class="p-4 rounded-2xl shadow-xl bg-slate-800 text-slate-600">
+                            <i id="status-icon" data-lucide="target" class="w-10 h-10"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Analyse-Status</p>
+                            <p id="status-text" class="text-xl font-black">Suche Signatur...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="mt-12 pb-16 text-center text-[10px] text-slate-700 font-black uppercase tracking-[0.4em] border-t border-slate-900 pt-12">
+            <div class="flex justify-center gap-12">
+               <span>Physik-Simulation</span>
+               <span>Wellenlängen-Synchronisation</span>
+               <span>Standard G2V / A1V / M1-2Ia</span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const MIN_WL = 380;
+        const MAX_WL = 750;
+
+        const ELEMENTS = {
+            Hydrogen: { name: 'Wasserstoff', lines: [{ wl: 656.3, i: 1, w: 3 }, { wl: 486.1, i: 0.8, w: 2.2 }, { wl: 434.1, i: 0.6, w: 1.8 }, { wl: 410.2, i: 0.4, w: 1.4 }] },
+            Helium: { name: 'Helium', lines: [{ wl: 587.6, i: 1, w: 2 }, { wl: 447.1, i: 0.7, w: 1.6 }, { wl: 667.8, i: 0.5, w: 1.6 }, { wl: 501.6, i: 0.6, w: 1.6 }] },
+            Sodium: { name: 'Natrium', lines: [{ wl: 589.0, i: 1, w: 1.8 }, { wl: 589.6, i: 0.9, w: 1.8 }] },
+            Calcium: { name: 'Calcium', lines: [{ wl: 393.4, i: 1, w: 3.5 }, { wl: 396.9, i: 1, w: 3.5 }, { wl: 422.7, i: 0.7, w: 2 }] },
+            Magnesium: { name: 'Magnesium', lines: [{ wl: 516.7, i: 0.8, w: 1.5 }, { wl: 517.3, i: 0.9, w: 1.5 }, { wl: 518.4, i: 1, w: 1.5 }] },
+            Iron: { name: 'Eisen', lines: [{ wl: 527.0, i: 0.8, w: 1.2 }, { wl: 516.9, i: 0.7, w: 1.2 }, { wl: 438.4, i: 0.6, w: 1.2 }, { wl: 466.8, i: 0.5, w: 1.2 }] },
+            Silicon: { name: 'Silizium', lines: [{ wl: 413.0, i: 0.8, w: 1.5 }, { wl: 634.7, i: 0.7, w: 1.5 }] },
+            Titanium: { name: 'Titan', lines: [{ wl: 498.1, i: 0.6, w: 1.8 }, { wl: 453.3, i: 0.5, w: 1.8 }] },
+            Oxygen: { name: 'Sauerstoff', lines: [{ wl: 500.7, i: 1, w: 2.2 }, { wl: 495.9, i: 0.4, w: 2.2 }] },
+            Nitrogen: { name: 'Stickstoff', lines: [{ wl: 658.4, i: 1, w: 2.2 }] }
+        };
+
+        const OBJECTS = [
+            { id: 'sun', type: 'star', name: 'Sonne (G2V)', composition: ['Hydrogen', 'Helium', 'Sodium', 'Calcium', 'Iron', 'Magnesium'], desc: 'Gelber Zwergstern.' },
+            { id: 'vega', type: 'star', name: 'Wega (A0V)', composition: ['Hydrogen', 'Calcium'], desc: 'Heller Hauptreihenstern.' },
+            { id: 'rigel', type: 'star', name: 'Rigel (B8Ia)', composition: ['Hydrogen', 'Helium', 'Silicon', 'Magnesium'], desc: 'Blauer Überriese.' },
+            { id: 'sirius', type: 'star', name: 'Sirius A (A1V)', composition: ['Hydrogen', 'Calcium', 'Magnesium'], desc: 'Hellster Stern am Nachthimmel.' },
+            { id: 'betelgeuse', type: 'star', name: 'Beteigeuze (M1-2Ia)', composition: ['Sodium', 'Calcium', 'Iron', 'Magnesium', 'Titanium'], desc: 'Roter Überriese.' },
+            { id: 'orion', type: 'nebula', name: 'Orionnebel (M42)', composition: ['Hydrogen', 'Oxygen', 'Nitrogen', 'Helium'], desc: 'H-II Emissionsgebiet.' },
+            { id: 'ring', type: 'nebula', name: 'Ringnebel (M57)', composition: ['Hydrogen', 'Helium', 'Oxygen'], desc: 'Planetarischer Nebel.' }
+        ];
+
+        let selectedElements = [];
+        let selectedObj = OBJECTS[0];
+
+        function wavelengthToColor(wl) {
+            let r, g, b;
+            if (wl >= 380 && wl < 440) { r = -(wl - 440) / 60; g = 0; b = 1; }
+            else if (wl >= 440 && wl < 490) { r = 0; g = (wl - 440) / 50; b = 1; }
+            else if (wl >= 490 && wl < 510) { r = 0; g = 1; b = -(wl - 510) / 20; }
+            else if (wl >= 510 && wl < 580) { r = (wl - 510) / 70; g = 1; b = 0; }
+            else if (wl >= 580 && wl < 645) { r = 1; g = -(wl - 645) / 65; b = 0; }
+            else if (wl >= 645 && wl <= 750) { r = 1; g = 0; b = 0; }
+            else { r = g = b = 0; }
+            let f = 1.0;
+            if (wl < 420) f = 0.3 + 0.7 * (wl - 380) / 40;
+            else if (wl > 700) f = 0.3 + 0.7 * (750 - wl) / 50;
+            return `rgb(${Math.round(r * 255 * f)}, ${Math.round(g * 255 * f)}, ${Math.round(b * 255 * f)})`;
+        }
+
+        function renderUI() {
+            // Elements
+            const elList = document.getElementById('element-list');
+            elList.innerHTML = '';
+            Object.entries(ELEMENTS).forEach(([key, el]) => {
+                const active = selectedElements.includes(key);
+                const btn = document.createElement('button');
+                btn.className = `px-4 py-3 rounded-xl text-left transition-all border-2 flex items-center justify-between group ${active ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg' : 'bg-slate-800/40 border-transparent text-slate-500 hover:border-slate-700'}`;
+                btn.onclick = () => toggleElement(key);
+                btn.innerHTML = `<span class="text-xs font-bold">${el.name}</span><div class="w-4 h-4 rounded-md border transition-colors ${active ? 'bg-blue-500 border-blue-500' : 'border-slate-700'}">${active ? '<i data-lucide="check" class="w-3 h-3 text-white m-auto"></i>' : ''}</div>`;
+                elList.appendChild(btn);
+            });
+
+            // Objects
+            const objList = document.getElementById('object-list');
+            objList.innerHTML = '';
+            OBJECTS.forEach(obj => {
+                const active = selectedObj.id === obj.id;
+                const btn = document.createElement('button');
+                btn.className = `w-full px-4 py-3 rounded-xl text-left transition-all border-2 ${active ? 'bg-emerald-600/10 border-emerald-500 text-white shadow-lg shadow-emerald-900/10' : 'bg-slate-800/40 border-transparent text-slate-500 hover:bg-slate-800'}`;
+                btn.onclick = () => selectObject(obj);
+                btn.innerHTML = `<div class="flex flex-col"><span class="text-xs font-bold">${obj.name}</span><span class="text-[9px] opacity-40 font-mono uppercase">${obj.desc}</span></div>`;
+                objList.appendChild(btn);
+            });
+
+            document.getElementById('current-obj-name').innerText = selectedObj.name;
+            
+            // Gas count
+            const countLabel = document.getElementById('active-gases-count');
+            if (selectedElements.length > 0) {
+                countLabel.innerText = `${selectedElements.length} Gase aktiv`;
+                countLabel.classList.remove('hidden');
+            } else {
+                countLabel.classList.add('hidden');
+            }
+
+            renderSpectra();
+            checkAnalysis();
+            lucide.createIcons();
+        }
+
+        function renderSpectra() {
+            const refContainer = document.getElementById('reference-spectrum');
+            const obsContainer = document.getElementById('observation-spectrum');
+            refContainer.innerHTML = '';
+            obsContainer.innerHTML = '';
+
+            // Reference Lines
+            selectedElements.forEach(key => {
+                ELEMENTS[key].lines.forEach(line => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'line';
+                    lineDiv.style.left = `${((line.wl - MIN_WL) / (MAX_WL - MIN_WL)) * 100}%`;
+                    lineDiv.style.width = `${line.w}px`;
+                    lineDiv.style.backgroundColor = wavelengthToColor(line.wl);
+                    lineDiv.style.boxShadow = `0 0 10px ${wavelengthToColor(line.wl)}`;
+                    lineDiv.style.opacity = line.i;
+                    refContainer.appendChild(lineDiv);
+                });
+            });
+
+            // Observation Lines
+            if (selectedObj.type === 'star') {
+                obsContainer.style.background = `linear-gradient(to right, ${Array.from({length: 11}, (_, i) => wavelengthToColor(MIN_WL + i * (MAX_WL-MIN_WL)/10)).join(', ')})`;
+            } else {
+                obsContainer.style.background = 'black';
+            }
+
+            selectedObj.composition.forEach(key => {
+                ELEMENTS[key].lines.forEach(line => {
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'line';
+                    lineDiv.style.left = `${((line.wl - MIN_WL) / (MAX_WL - MIN_WL)) * 100}%`;
+                    lineDiv.style.width = `${line.w}px`;
+                    lineDiv.style.backgroundColor = selectedObj.type === 'star' ? 'rgba(0,0,0,0.95)' : wavelengthToColor(line.wl);
+                    lineDiv.style.boxShadow = selectedObj.type === 'star' ? 'none' : `0 0 10px ${wavelengthToColor(line.wl)}`;
+                    lineDiv.style.opacity = line.i;
+                    obsContainer.appendChild(lineDiv);
+                });
+            });
+
+            // Reference markers on observation
+            selectedElements.forEach(key => {
+                ELEMENTS[key].lines.forEach(line => {
+                    const mark = document.createElement('div');
+                    mark.className = 'line';
+                    mark.style.left = `${((line.wl - MIN_WL) / (MAX_WL - MIN_WL)) * 100}%`;
+                    mark.style.width = '1px';
+                    mark.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                    mark.style.zIndex = '0';
+                    obsContainer.appendChild(mark);
+                });
+            });
+        }
+
+        function checkAnalysis() {
+            const target = new Set(selectedObj.composition);
+            const selected = new Set(selectedElements);
+            const allSelectedInTarget = selectedElements.every(el => target.has(el));
+            const allTargetInSelected = selectedObj.composition.every(el => selected.has(el));
+            const complete = allSelectedInTarget && allTargetInSelected && selectedElements.length > 0;
+
+            const statusCard = document.getElementById('status-card');
+            const statusText = document.getElementById('status-text');
+            const successLabel = document.getElementById('success-label');
+            const statusIconBg = document.getElementById('status-icon-bg');
+            const statusIcon = document.getElementById('status-icon');
+
+            if (complete) {
+                statusCard.className = 'p-8 rounded-[2.5rem] border flex items-center gap-6 transition-all duration-700 bg-green-600/10 border-green-500/30 shadow-lg shadow-green-900/10 opacity-100';
+                statusText.innerText = 'Zusammensetzung korrekt';
+                successLabel.classList.remove('hidden');
+                statusIconBg.className = 'p-4 rounded-2xl shadow-xl transition-all bg-green-500 text-white scale-110 shadow-green-500/20';
+                statusIcon.setAttribute('data-lucide', 'sparkles');
+            } else {
+                statusCard.className = 'p-8 rounded-[2.5rem] border flex items-center gap-6 transition-all duration-700 bg-slate-900/40 border-white/5 opacity-50';
+                successLabel.classList.add('hidden');
+                statusIconBg.className = 'p-4 rounded-2xl shadow-xl transition-all bg-slate-800 text-slate-600';
+                statusIcon.setAttribute('data-lucide', 'target');
+                
+                if (selectedElements.length > 0) {
+                    statusText.innerText = allSelectedInTarget ? 'Teilweise erkannt...' : 'Falsche Elemente dabei';
+                } else {
+                    statusText.innerText = 'Analysiere Signatur...';
+                }
+            }
+        }
+
+        function toggleElement(key) {
+            if (selectedElements.includes(key)) {
+                selectedElements = selectedElements.filter(k => k !== key);
+            } else {
+                selectedElements.push(key);
+            }
+            renderUI();
+        }
+
+        function selectObject(obj) {
+            selectedObj = obj;
+            selectedElements = [];
+            renderUI();
+        }
+
+        function resetElements() {
+            selectedElements = [];
+            renderUI();
+        }
+
+        const monitor = document.getElementById('monitor');
+        const badge = document.getElementById('wl-badge');
+        const wlText = document.getElementById('wl-text');
+
+        monitor.onmousemove = (e) => {
+            const rect = monitor.getBoundingClientRect();
+            let x = ((e.clientX - rect.left) / rect.width) * 100;
+            x = Math.max(0, Math.min(100, x));
+            badge.style.display = 'block';
+            badge.style.left = `${x}%`;
+            const wl = MIN_WL + (x / 100) * (MAX_WL - MIN_WL);
+            wlText.innerHTML = `${wl.toFixed(1)}<span class="text-xs ml-0.5 opacity-70">nm</span>`;
+        };
+
+        monitor.onmouseleave = () => {
+            badge.style.display = 'none';
+        };
+
+        // Initial Scale
+        const scale = document.getElementById('scale');
+        [380, 420, 460, 500, 540, 580, 620, 660, 700, 750].forEach(wl => {
+            const container = document.createElement('div');
+            container.className = 'absolute top-0 flex flex-col items-center -translate-x-1/2';
+            container.style.left = `${((wl - MIN_WL) / (MAX_WL - MIN_WL)) * 100}%`;
+            container.innerHTML = `<div class="w-px h-3 bg-slate-800"></div><span class="text-[10px] font-mono font-black text-slate-700 mt-2">${wl}</span>`;
+            scale.appendChild(container);
+        });
+
+        window.onload = renderUI;
+    </script>
+</body>
+</html>
